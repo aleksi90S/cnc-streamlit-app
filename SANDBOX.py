@@ -2,8 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import io
-import os
-import getpass
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 from openpyxl import Workbook
@@ -40,34 +38,42 @@ def check_password():
 # --- MAIN APP ---
 if check_password():
 
-    # Automatically determine current user's home directory
-    username = getpass.getuser()
-    base_path = os.path.join("C:/Users", username, "IKEA", "Country Customer Relations Private (RETFISO) - Tiedostot", "009. Online", "TEST DATA")
-    orders_path = os.path.join(base_path, "CnC_Orders.json")
-    calendar_path = os.path.join(base_path, "IKEA_calendar.json")
+    st.title("🔽 Upload Data Files")
+    uploaded_orders = st.file_uploader("Upload Orders JSON", type="json")
+    uploaded_calendar = st.file_uploader("Upload Calendar JSON", type="json")
 
-    st.sidebar.markdown(f"**📁 Using data path:** `{base_path}`")
+    if uploaded_orders is not None and uploaded_calendar is not None:
+        try:
+            try:
+                df_orders = pd.read_json(uploaded_orders, lines=True)
+            except ValueError:
+                uploaded_orders.seek(0)
+                df_orders = pd.read_json(uploaded_orders)
 
-    try:
-        df_orders = pd.read_json(orders_path, lines=True)
-        df_calendar = pd.read_json(calendar_path, lines=True)
+            try:
+                df_calendar = pd.read_json(uploaded_calendar, lines=True)
+            except ValueError:
+                uploaded_calendar.seek(0)
+                df_calendar = pd.read_json(uploaded_calendar)
 
-        df_orders = df_orders[df_orders['created_sales_net_amount_euro'] > 0]
-        df_calendar['day_date'] = pd.to_datetime(df_calendar['day_date'])
-        df_orders['transaction_date'] = pd.to_datetime(df_orders['transaction_date'])
-        df_calendar = df_calendar[['day_date', 'fiscal_month_no', 'iso_month_name_long', 'fiscal_year_label']]
-        df = pd.merge(df_orders, df_calendar, left_on='transaction_date', right_on='day_date')
-        df.drop(columns=['day_date'], inplace=True)
+            df_orders = df_orders[df_orders['created_sales_net_amount_euro'] > 0]
+            df_calendar['day_date'] = pd.to_datetime(df_calendar['day_date'])
+            df_orders['transaction_date'] = pd.to_datetime(df_orders['transaction_date'])
+            df_calendar = df_calendar[['day_date', 'fiscal_month_no', 'iso_month_name_long', 'fiscal_year_label']]
+            df = pd.merge(df_orders, df_calendar, left_on='transaction_date', right_on='day_date')
+            df.drop(columns=['day_date'], inplace=True)
 
-        st.success("✅ Data loaded successfully from local folder!")
+            st.success("✅ Data loaded successfully!")
 
-    except Exception as e:
-        st.error(f"❌ Failed to load data from path `{base_path}`.\n\nError: {e}")
+        except Exception as e:
+            st.error(f"❌ Failed to load data: {e}")
+            st.stop()
+    else:
+        st.info("Please upload both Orders and Calendar JSON files to begin.")
         st.stop()
 
     # --- Page Selector ---
     page = st.sidebar.selectbox("📂 Select a Page", ["Summary Dashboard", "Pricing Impact Analysis"])
-
 
     # --- PAGE 1: SUMMARY ---
     if page == "Summary Dashboard":
